@@ -1,8 +1,21 @@
 [package]
-name = "http-server"
+name = "email_newsletter"
 version = "0.1.0"
 edition = "2024"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "linker=clang-19", "-C", "link-arg=-fuse-ld=lld"]
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 actix-web = "4"
+reqwest="0.11"
+
+
+[lib]
+path="src/lib.rs"
+
+[[bin]]
+path="src/main.rs"
+name="email_newsletter"
+
