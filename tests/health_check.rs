@@ -12,7 +12,7 @@ fn spawn_app() -> String {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind");
     let port = listener.local_addr().unwrap();
 
-    let server = email_newsletter::run(listener).expect("Failed to run server");
+    let server = email_newsletter::startup::run(listener).expect("Failed to run server");
     let _ = tokio::spawn(server);
     format!("htttp://127.0.0.1:{}", port)
     //port.to_string()
