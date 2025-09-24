@@ -10,6 +10,7 @@ rustflags = ["-C", "linker=clang-19", "-C", "link-arg=-fuse-ld=lld"]
 tokio = { version = "1", features = ["full"] }
 actix-web = "4"
 reqwest="0.11"
+serde = { version = "1.0.220", features = ["derive"] }
 
 
 [lib]
