@@ -3,18 +3,16 @@
 use email_newsletter::configuration::get_configuration;
 use sqlx::{Connection, PgConnection};
 
-
-
 fn spawn_app() -> String {
-    /**
- * Spawn the application and return the address to it
- *  it make same as main but in test env
- * create a TcpListener bind it to random port
- * get the port from the listener
- * run the server with the listener
- * spawn the server as a new task
- * return the address to the server
- */
+    /*
+    Spawn the application and return the address to it
+      it make same as main but in test env
+     create a TcpListener bind it to random port
+     get the port from the listener
+     run the server with the listener
+     spawn the server as a new task
+     return the address to the server
+    */
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind");
     let port = listener.local_addr().unwrap();
 
@@ -46,7 +44,17 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
 
     let app_address = spawn_app();
+    let configuration = get_configuration().expect("Falied to read config ❌❌");
+
+    let connection_string = configuration.database.connection_string();
+    //instead write hard-code : DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+
+    let connection = PgConnection::connect(&connection_string)
+        .await
+        .expect("Falied to Connect to postgres");
+
     let client = reqwest::Client::new();
+    // instead create client like front end or api client , this line saves us all of this
 
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
