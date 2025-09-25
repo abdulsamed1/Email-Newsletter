@@ -1,4 +1,12 @@
-/**
+//tests/health_check.rs
+
+use email_newsletter::configuration::get_configuration;
+use sqlx::{Connection, PgConnection};
+
+
+
+fn spawn_app() -> String {
+    /**
  * Spawn the application and return the address to it
  *  it make same as main but in test env
  * create a TcpListener bind it to random port
@@ -7,8 +15,6 @@
  * spawn the server as a new task
  * return the address to the server
  */
-
-fn spawn_app() -> String {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind");
     let port = listener.local_addr().unwrap();
 

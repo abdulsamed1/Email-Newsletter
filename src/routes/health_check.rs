@@ -1,5 +1,4 @@
-use actix_web::{App, HttpResponse, HttpServer, dev::Server, web};
-use std::net::TcpListener;
+use actix_web::{HttpResponse};
 /****************************************************************************************
  * health_check function to respond to health check requests
  * return an HTTP 200 OK response

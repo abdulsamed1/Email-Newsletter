@@ -1,6 +1,5 @@
 
-use actix_web::{App, HttpResponse, HttpServer, dev::Server, web};
-use std::net::TcpListener;
+use actix_web::{ HttpResponse,  web};
 /****************************************************************************************
  * spawn_app function to start the application server for testing
  * bind a TcpListener to an available port on localhost
