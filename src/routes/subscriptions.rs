@@ -1,5 +1,5 @@
 use actix_web::{guard::Connect, web, HttpResponse};
-use sqlx::{Connection, PgConnection};
+use sqlx::PgPool;
 /****************************************************************************************
  * spawn_app function to start the application server for testing
  * bind a TcpListener to an available port on localhost
@@ -9,10 +9,7 @@ pub struct FormData {
     _email: String,
     _username: String,
 }
-pub async fn subscriptions(
-    _form: web::Form<FormData>,
-    _connection: web::Data<PgConnection>,
-) -> HttpResponse {
+pub async fn subscriptions(form: web::Form<FormData>, pool: web::Data<PgPool>) -> HttpResponse {
     sqlx::query!(
         r#"
 insert into subscriptions (id, email, username, subscribed_at)
@@ -23,7 +20,7 @@ values ($1, $2, $3, $4)
         form._username,
         Utc::now()
     )
-    .execute(connection.get_ref())
+    .execute(pool.get_ref())
     .await;
     HttpResponse::Ok().finish()
 }

@@ -1,5 +1,5 @@
 use actix_web::{dev::Server, web, App, HttpServer};
-use sqlx::PgConnection;
+use sqlx::{PgConnection, PgPool};
 use std::net::TcpListener;
 
 use crate::routes::{health_check, subscriptions};
@@ -12,13 +12,13 @@ use crate::routes::{health_check, subscriptions};
  * If there is an error binding the listener, return the error
 
 */
-pub fn run(connection: PgConnection, listener: TcpListener) -> Result<Server, std::io::Error> {
-   let connection=web::Data::new(connection);
+pub fn run(db_pool: PgPool, listener: TcpListener) -> Result<Server, std::io::Error> {
+   let db_pool=web::Data::new(db_pool);
     let server = HttpServer::new(move || {
         App::new()
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscriptions)).
-            app_data(connection.clone())
+            app_data(db_pool.clone())
     })
     .listen(listener)?
     .run();
