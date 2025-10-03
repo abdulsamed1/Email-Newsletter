@@ -1,8 +1,8 @@
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
-use zero2prod::configuration::{get_configuration, DatabaseSettings};
-use zero2prod::startup::run;
+use email_newsletter::configuration::{get_configuration, DatabaseSettings};
+use email_newsletter::startup::run;
 
 pub struct TestApp {
     pub address: String,
