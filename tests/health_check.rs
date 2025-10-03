@@ -1,91 +1,134 @@
-//tests/health_check.rs
+use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::net::TcpListener;
+use uuid::Uuid;
+use zero2prod::configuration::{get_configuration, DatabaseSettings};
+use zero2prod::startup::run;
 
-use email_newsletter::configuration::get_configuration;
-use sqlx::{Connection, PgConnection};
-
-fn spawn_app() -> String {
-    /*
-    Spawn the application and return the address to it
-      it make same as main but in test env
-     create a TcpListener bind it to random port
-     get the port from the listener
-     run the server with the listener
-     spawn the server as a new task
-     return the address to the server
-    */
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind");
-    let port = listener.local_addr().unwrap();
-
-    let server = email_newsletter::startup::run(listener).expect("Failed to run server");
-    let _ = tokio::spawn(server);
-    format!("htttp://127.0.0.1:{}", port)
-    //port.to_string()
+pub struct TestApp {
+    pub address: String,
+    pub db_pool: PgPool,
 }
 
-//********************************************* */
-#[tokio::test]
+async fn spawn_app() -> TestApp {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
+    // We retrieve the port assigned to us by the OS
+    let port = listener.local_addr().unwrap().port();
+    let address = format!("http://127.0.0.1:{}", port);
 
+    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let connection_pool = configure_database(&configuration.database).await;
+
+    let server = run(listener, connection_pool.clone()).expect("Failed to bind address");
+    let _ = tokio::spawn(server);
+    TestApp {
+        address,
+        db_pool: connection_pool,
+    }
+}
+
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // Create database
+    let maintenance_settings = DatabaseSettings {
+        database_name: "postgres".to_string(),
+        username: "postgres".to_string(),
+        password: "password".to_string(),
+        ..config.clone()
+    };
+    let mut connection = PgConnection::connect(&maintenance_settings.connection_string())
+        .await
+        .expect("Failed to connect to Postgres");
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    // Migrate database
+    let connection_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to connect to Postgres.");
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database");
+    connection_pool
+}
+
+#[tokio::test]
 async fn health_check_works() {
-    let address = spawn_app();
+    // Arrange
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
+
+    // Act
     let response = client
-        .get(&format!("http://{}/health_check", &address))
+        // Use the returned application address
+        .get(&format!("{}/health_check", &app.address))
         .send()
         .await
         .expect("Failed to execute request.");
+
+    // Assert
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
 }
 
-/****************************************************************************************/
-
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
-
-    let app_address = spawn_app();
-    let configuration = get_configuration().expect("Falied to read config ❌❌");
-
-    let connection_string = configuration.database.connection_string();
-    //instead write hard-code : DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
-
-    let connection = PgConnection::connect(&connection_string)
-        .await
-        .expect("Falied to Connect to postgres");
-
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
-    // instead create client like front end or api client , this line saves us all of this
-
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    // Act
     let response = client
-        .post(&format!("{}/subscriptions", &app_address))
+        .post(&format!("{}/subscriptions", &app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
         .await
         .expect("Failed to execute request.");
+
     // Assert
     assert_eq!(200, response.status().as_u16());
+
+    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+        .fetch_one(&app.db_pool)
+        .await
+        .expect("Failed to fetch saved subscription.");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
 }
-/****************************************************************************************/
 
 #[tokio::test]
 async fn subscribe_returns_a_400_when_data_is_missing() {
-    let app_address = spawn_app();
+    // Arrange
+    let app = spawn_app().await;
     let client = reqwest::Client::new();
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
         ("email=ursula_le_guin%40gmail.com", "missing the name"),
         ("", "missing both name and email"),
     ];
+
     for (invalid_body, error_message) in test_cases {
         // Act
         let response = client
-            .post(&format!("{}/subscriptions", &app_address))
+            .post(&format!("{}/subscriptions", &app.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(invalid_body)
             .send()
             .await
             .expect("Failed to execute request.");
+
+        // Assert
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            // Additional customised error message on test failure
+            "The API did not fail with 400 Bad Request when the payload was {}.",
+            error_message
+        );
     }
 }
