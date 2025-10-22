@@ -8,8 +8,8 @@ use uuid::Uuid;
  */
 #[derive(serde::Deserialize)]
 pub struct FormData {
-    _email: String,
-    _name: String,
+    email: String,
+    name: String,
 }
 pub async fn subscriptions(form: web::Form<FormData>, pool: web::Data<PgPool>) -> HttpResponse {
     match sqlx::query!(
@@ -18,8 +18,8 @@ pub async fn subscriptions(form: web::Form<FormData>, pool: web::Data<PgPool>) -
         VALUES ($1, $2, $3, $4)
         "#,
         Uuid::new_v4(),
-        form._email,
-        form._name,
+        form.email,
+        form.name,
         Utc::now()
     )
     .execute(pool.get_ref())
