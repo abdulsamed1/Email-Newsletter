@@ -1,8 +1,8 @@
 [package]
 name = "email_newsletter"
 version = "0.1.0"
-authors = ["LukeMathWalker <rust@lpalmieri.com>"]
-edition = "2025"
+authors = ["Abdulsamed <abdulsamed1>"]
+edition = "2024"
 
 
 [lib]

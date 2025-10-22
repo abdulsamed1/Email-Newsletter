@@ -1,9 +1,8 @@
+use email_newsletter::configuration::{DatabaseSettings, get_configuration};
+use email_newsletter::startup::run;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
-use email_newsletter::configuration::{get_configuration, DatabaseSettings};
-use email_newsletter::startup::run;
-
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
@@ -28,25 +27,43 @@ async fn spawn_app() -> TestApp {
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    // Create database
-    let maintenance_settings = DatabaseSettings {
-        database_name: "postgres".to_string(),
-        username: "postgres".to_string(),
-        password: "password".to_string(),
-        ..config.clone()
+    // Create database: retry a few times to allow Postgres to become available.
+    let mut attempts = 0u8;
+    let max_attempts = 10u8;
+    let mut connection = loop {
+        match PgConnection::connect(&config.connection_string_without_db()).await {
+            Ok(conn) => break conn,
+            Err(err) => {
+                attempts += 1;
+                if attempts >= max_attempts {
+                    panic!("Failed to connect to Postgres after {} attempts: {}", max_attempts, err);
+                }
+                // Wait a bit before retrying
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+        }
     };
-    let mut connection = PgConnection::connect(&maintenance_settings.connection_string())
-        .await
-        .expect("Failed to connect to Postgres");
+
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
         .await
         .expect("Failed to create database.");
 
-    // Migrate database
-    let connection_pool = PgPool::connect(&config.connection_string())
-        .await
-        .expect("Failed to connect to Postgres.");
+    // Migrate database: also retry connecting to the newly created database
+    attempts = 0;
+    let connection_pool = loop {
+        match PgPool::connect(&config.connection_string()).await {
+            Ok(pool) => break pool,
+            Err(err) => {
+                attempts += 1;
+                if attempts >= max_attempts {
+                    panic!("Failed to connect to Postgres database after {} attempts: {}", max_attempts, err);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+        }
+    };
+
     sqlx::migrate!("./migrations")
         .run(&connection_pool)
         .await
